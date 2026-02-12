@@ -1,0 +1,59 @@
+# -*- coding: utf-8 -*-
+"""
+RPC-клиент для взаимодействия с Bitcoin-нодой.
+Содержит логику выполнения JSON-RPC вызовов.
+"""
+
+import requests
+from config import RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT
+
+# ------------------------------------------------------------------
+# 1. Создаём сессию, чтобы повторно использовать соединение.
+# ------------------------------------------------------------------
+session = requests.Session()
+session.auth = (RPC_USER, RPC_PASSWORD)
+
+# ------------------------------------------------------------------
+# 2. Утилита RPC
+# ------------------------------------------------------------------
+def rpc_call(method: str, params=None) -> dict:
+    """
+    Выполняет JSON-RPC вызов к локальной ноде и возвращает `result`.
+
+    Параметры
+    ----------
+    method : str
+        Имя метода (например, 'getblocktemplate').
+    params : list | dict | None
+        Параметры метода. Если ``None`` – передаётся пустой список.
+
+    Возвращает
+    -------
+    dict
+        Результат RPC в виде Python-объекта.
+
+    Исключения
+    ----------
+    RuntimeError
+        Если произошла ошибка RPC-вызова.
+    """
+    url = f"http://{RPC_HOST}:{RPC_PORT}"
+    payload = {
+        "jsonrpc": "1.0",
+        "id": 1,
+        "method": method,
+        "params": params or []
+    }
+
+    try:
+        resp = session.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get("error"):
+            raise RuntimeError(f"{method} error: {data['error']}")
+
+        return data["result"]
+    except Exception as exc:
+        print(f"[ERROR] RPC вызов {method} не выполнен: {exc}")
+        raise
