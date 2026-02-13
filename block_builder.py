@@ -5,8 +5,6 @@
 """
 
 import time
-from config import WALLET_ADDRESS
-from utils import double_sha256
 
 
 def build_block_header(template: dict, nonce: int) -> bytes:
@@ -24,6 +22,12 @@ def build_block_header(template: dict, nonce: int) -> bytes:
     -------
     bytes
         Сериализованный заголовок (80 байт).
+
+    Примечание
+    ----------
+    - Используем время из шаблона вместо текущего системного времени
+    - Корректируем время в пределах допустимого отклонения (±2 часа)
+    - Обрабатываем случай, когда время в шаблоне отсутствует
     """
     version = template['version'].to_bytes(4, 'little')
 
@@ -33,7 +37,17 @@ def build_block_header(template: dict, nonce: int) -> bytes:
     # merkle_root формируется из txid первой транзакции.
     merkle_root = bytes.fromhex(template['transactions'][0]['txid'])[::-1]
 
-    time_sec = int(time.time()).to_bytes(4, 'little')
+    # Используем время из шаблона с корректировкой
+    current_time = template.get('curtime', int(time.time()))
+
+    # Правила Bitcoin: время блока должно быть:
+    # - Не больше чем на 2 часа вперед от системного времени
+    # - Не больше чем на 2 часа назад от системного времени
+    max_time_offset = 7200  # 2 часа в секундах
+    system_time = int(time.time())
+    corrected_time = max(system_time - max_time_offset,
+                         min(system_time + max_time_offset, current_time))
+    time_sec = corrected_time.to_bytes(4, 'little')
 
     # bits – возможно строка; преобразуем к int.
     bits_int = template['bits']

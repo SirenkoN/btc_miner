@@ -26,7 +26,7 @@ def double_sha256(data: bytes) -> bytes:
 
 def target_from_bits(bits):
     """
-    Переводит compact-формат `bits` (см. BIP 0032) в целевой хеш.
+    Переводит compact-формат `bits` в целевой хеш согласно Bitcoin протоколу.
 
     Параметры
     ----------
@@ -38,11 +38,33 @@ def target_from_bits(bits):
     -------
     bytes
         32-байтовый целевой хеш в big-endian формате.
+
+    Примечание
+    ----------
+    Согласно Bitcoin протоколу:
+    - Если экспонента <= 3, вычисляем target = coefficient >> (8 * (3 - exponent))
+    - Иначе target = coefficient << (8 * (exponent - 3))
+    - Проверяем на переполнение (максимум 256 бит)
     """
     if isinstance(bits, str):
+        # Убираем префикс '0x', если он есть
+        bits = bits.replace('0x', '')
         bits = int(bits, 16)
 
-    exp = bits >> 24  # экспонента – верхние 8 бит
-    coeff = bits & 0xffffff  # коэффициент – нижние 24 бит
-    target_int = coeff << (8 * (exp - 3))
-    return target_int.to_bytes(32, byteorder='big')
+    # Извлекаем экспоненту и коэффициент
+    exponent = bits >> 24
+    coefficient = bits & 0x00ffffff
+
+    # Обработка особых случаев согласно Bitcoin протоколу
+    if exponent <= 3:
+        # Слишком маленькая экспонента
+        target = coefficient >> (8 * (3 - exponent))
+    else:
+        # Обычный случай
+        target = coefficient << (8 * (exponent - 3))
+
+    # Проверка на переполнение (максимум 256 бит)
+    if target > 2 ** 256 - 1:
+        target = 2 ** 256 - 1
+
+    return target.to_bytes(32, 'big')

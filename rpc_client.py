@@ -13,6 +13,7 @@ from config import RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT
 session = requests.Session()
 session.auth = (RPC_USER, RPC_PASSWORD)
 
+
 # ------------------------------------------------------------------
 # 2. Утилита RPC
 # ------------------------------------------------------------------
@@ -57,3 +58,16 @@ def rpc_call(method: str, params=None) -> dict:
     except Exception as exc:
         print(f"[ERROR] RPC вызов {method} не выполнен: {exc}")
         raise
+
+
+# ------------------------------------------------------------------
+# 3. Получение шаблона блока
+# ------------------------------------------------------------------
+def get_block_template() -> dict:
+    """
+    Возвращает шаблон блока через RPC.
+
+    Использует метод getblocktemplate с параметром:
+    {"rules": ["segwit"]}
+    """
+    return rpc_call("getblocktemplate", [{"rules": ["segwit"]}])
