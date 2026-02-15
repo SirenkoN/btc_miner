@@ -5,26 +5,26 @@
 """
 
 import time
+from config import WALLET_ADDRESS
+from utils import calculate_merkle_root
 
 
-def build_block_header(template: dict, nonce: int) -> bytes:
+def build_block_header(template: dict) -> bytes:
     """
-    Составляет заголовок блока из шаблона и заданного nonce.
+    Составляет заголовок блока из шаблона без nonce.
 
-    Параметры
+    Parameters
     ----------
     template : dict
         Результат `getblocktemplate`.
-    nonce : int
-        Текущий пробный nonce.
 
-    Возвращает
+    Returns
     -------
     bytes
         Сериализованный заголовок (80 байт).
 
-    Примечание
-    ----------
+    Notes
+    -----
     - Используем время из шаблона вместо текущего системного времени
     - Корректируем время в пределах допустимого отклонения (±2 часа)
     - Обрабатываем случай, когда время в шаблоне отсутствует
@@ -34,8 +34,8 @@ def build_block_header(template: dict, nonce: int) -> bytes:
     # previousblockhash приходит как hex-строка.
     prev_hash = bytes.fromhex(template['previousblockhash'])[::-1]
 
-    # merkle_root формируется из txid первой транзакции.
-    merkle_root = bytes.fromhex(template['transactions'][0]['txid'])[::-1]
+    # merkle_root формируется из coinbase транзакции и транзакций mempool'а.
+    merkle_root = calculate_merkle_root(WALLET_ADDRESS, template)
 
     # Используем время из шаблона с корректировкой
     current_time = template.get('curtime', int(time.time()))
@@ -55,9 +55,7 @@ def build_block_header(template: dict, nonce: int) -> bytes:
         bits_int = int(bits_int, 16)
     bits = bits_int.to_bytes(4, 'little')
 
-    nonce_b = nonce.to_bytes(4, 'little')
-
     return (
             version + prev_hash + merkle_root +
-            time_sec + bits + nonce_b
+            time_sec + bits
     )

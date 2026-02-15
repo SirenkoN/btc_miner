@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Точка входа для Bitcoin-майнера версии 0.3.
-Реализация автообновления задания.
+Точка входа для Bitcoin-майнера версии 0.4.
+Реализация создания coinbase транзакция и расчета merkle root, включающего все транзакции из mempool'а.
 """
 
 import time
@@ -18,17 +18,17 @@ from block_builder import build_block_header
 # ------------------------------------------------------------------
 def mine_block(template: dict):
     """
-    Ищет nonce, удовлетворяющий target для заданного блока-template.
+    Ищет nonce, удовлетворяющий target для заданного блока.
 
-    Параметры
+    Parameters
     ----------
     template : dict
         Данные от `getblocktemplate`.
 
-    Возвращает
+    Returns
     -------
-    tuple[int, bytes] | None
-        (nonce, block_header) при успехе; ``None`` – если не найден.
+    tuple[int, bytes] or None
+        (nonce, block_header) при успехе; None – если не найден.
     """
     target_bytes = target_from_bits(template['bits'])
     target_int = int.from_bytes(target_bytes, 'big')
@@ -37,16 +37,18 @@ def mine_block(template: dict):
 
     print(f"[INFO] Начинаем поиск nonce для блока {template['height']}...")
 
+    header = build_block_header(template)
+
     while nonce_counter <= NONCE_CHUNK_SIZE:
         # В биткоин Nonce — это 4-байтовое (32-битное) поле
         nonce = getrandbits(32)
-        header = build_block_header(template, nonce)
-        hash_val = double_sha256(header)
+        header_with_nonce = header + nonce.to_bytes(4, 'little')
+        hash_val = double_sha256(header_with_nonce)
 
         # В Bitcoin хеш интерпретируется как little-endian целое число при сравнении
         if int.from_bytes(hash_val, 'little') < target_int:
             print(f"[SUCCESS] Найден подходящий nonce: {nonce}")
-            return nonce, header
+            return nonce, header_with_nonce
 
         nonce_counter += 1
 
@@ -59,17 +61,17 @@ def mine_block(template: dict):
 # ------------------------------------------------------------------
 def submit_block(header: bytes) -> bool:
     """
-    Отправляет заголовок блока в ноду через RPC.
+    Отправляет заголовок блока ноде через RPC.
 
-    Параметры
+    Parameters
     ----------
     header : bytes
         Сериализованный заголовок (80 байт).
 
-    Возвращает
+    Returns
     -------
     bool
-        ``True`` – если блок принят; ``False`` – иначе.
+        True – если блок принят; False – иначе.
     """
     block_hex = header.hex()
     result = rpc_call('submitblock', [block_hex])
@@ -89,13 +91,15 @@ def run_miner():
     """
     Основной цикл майнера с автообновлением задания.
 
-    Особенности реализации:
-    - Кэширование текущего шаблона блока
-    - Отслеживание previousblockhash для обнаружения новых блоков в сети
+    Notes
+    -----
+    - Создается coinbase транзакция из представленного пользователем адреса и ответа ноды
+    - Создается merkle tree и вычисляется merkle root
+    - Оптимизация: заголовок блока без nonce вычисляется один раз для проверки всего диапазона NONCE_CHUNK_SIZE (а не для каждого nonce, как раньше)
+    - Оптимизация: кэширование текущего шаблона блока
     - Проверка высоты блока для определения обновлений цепочки
-    - Эффективное использование ресурсов (не запрашиваем новый шаблон каждый раз)
     """
-    print("=== Bitcoin-майнер (версия 0.3) ===")
+    print("=== Bitcoin-майнер (версия 0.4) ===")
     print("Майнер запущен")
 
     # Переменные для отслеживания актуальности шаблона
@@ -119,14 +123,7 @@ def run_miner():
                     # Первый запуск
                     should_update = True
                 else:
-                    # Проверяем, изменился ли предыдущий хеш (означает появление нового блока в сети)
-                    if new_template['previousblockhash'] != current_template['previousblockhash']:
-                        print(f"[INFO] Обнаружен новый блок в сети. "
-                              f"Старый хеш: {current_template['previousblockhash'][:10]}..., "
-                              f"Новый хеш: {new_template['previousblockhash'][:10]}...")
-                        should_update = True
-                    # Проверяем, увеличилась ли высота блока
-                    elif new_template['height'] > current_template['height']:
+                    if new_template['height'] > current_template['height']:
                         print(f"[INFO] Высота блока увеличилась с {current_template['height']} "
                               f"до {new_template['height']}. Обновляем шаблон.")
                         should_update = True
@@ -138,31 +135,12 @@ def run_miner():
                       f"Целевая сложность: {current_template['bits']}")
 
             # Майнинг текущего шаблона
-            if current_template:
-                # Перед майнингом проверяем, не устарел ли шаблон
-                current_block_template = get_block_template()
-                if (current_template['previousblockhash'] != current_block_template['previousblockhash'] or
-                        current_template['height'] < current_block_template['height']):
-                    print("[INFO] Шаблон устарел во время поиска nonce. Пропускаем текущий цикл.")
-                    current_template = None
-                    continue
-
-                result = mine_block(current_template)
-                if result:
-                    if (current_template['previousblockhash'] == current_block_template['previousblockhash'] and
-                            current_template['height'] == current_block_template['height']):
-                        submit_block(result[1])
-                    else:
-                        print("[WARN] Шаблон устарел перед отправкой. Пропускаем отправку.")
-            else:
-                # Ждем получения первого шаблона
-                time.sleep(0.1)
+            result = mine_block(current_template)
+            if result:
+                    submit_block(result[1])
 
         except Exception as e:
             print(f"[ERROR] {str(e)}")
-
-        # Небольшая задержка для снижения нагрузки на CPU
-        time.sleep(0.01)
 
 
 # ------------------------------------------------------------------

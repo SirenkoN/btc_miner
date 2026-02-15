@@ -7,6 +7,7 @@ RPC-клиент для взаимодействия с Bitcoin-нодой.
 import requests
 from config import RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT
 
+
 # ------------------------------------------------------------------
 # 1. Создаём сессию, чтобы повторно использовать соединение.
 # ------------------------------------------------------------------
@@ -17,24 +18,24 @@ session.auth = (RPC_USER, RPC_PASSWORD)
 # ------------------------------------------------------------------
 # 2. Утилита RPC
 # ------------------------------------------------------------------
-def rpc_call(method: str, params=None) -> dict:
+def rpc_call(method: str, params=None) -> any:
     """
     Выполняет JSON-RPC вызов к локальной ноде и возвращает `result`.
 
-    Параметры
+    Parameters
     ----------
     method : str
         Имя метода (например, 'getblocktemplate').
     params : list | dict | None
         Параметры метода. Если ``None`` – передаётся пустой список.
 
-    Возвращает
+    Returns
     -------
-    dict
-        Результат RPC в виде Python-объекта.
+    any
+        Результат RPC в виде Python-объекта или None.
 
-    Исключения
-    ----------
+    Raises
+    ------
     RuntimeError
         Если произошла ошибка RPC-вызова.
     """
@@ -69,5 +70,10 @@ def get_block_template() -> dict:
 
     Использует метод getblocktemplate с параметром:
     {"rules": ["segwit"]}
+
+    Returns
+    -------
+    dict
+        Шаблон блока в формате, определенном Bitcoin Core
     """
     return rpc_call("getblocktemplate", [{"rules": ["segwit"]}])
