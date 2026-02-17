@@ -78,12 +78,13 @@ def calculate_merkle_root(address, template):
     Вычисляет Merkle Root и возвращает его в виде BYTES (Little-Endian),
     готовых для сборки заголовка блока.
     """
-    # 1. Получаем байты coinbase транзакции
-    # Функция get_coinbase_txid_from_template должна возвращать сырые байты (tx_bytes)
-    cb_tx_bytes = get_coinbase_txid_from_template(address, template)
+    # 1. Получаем сырую coinbase транзакцию и вычисляем её хеш
+    raw_coinbase = create_raw_coinbase_transaction(address, template)
+    # Вычисляем хеш и переворачиваем байты для формата little-endian (как хранится в блоке)
+    cb_tx_hash = double_sha256(raw_coinbase)[::-1]
 
     # 2. Собираем список всех TXID в байтах (Little-Endian)
-    nodes = [cb_tx_bytes]
+    nodes = [cb_tx_hash]
 
     for tx in template.get('transactions', []):
         # В template txid — это hex-строка (Big-Endian).
@@ -103,10 +104,11 @@ def calculate_merkle_root(address, template):
         for i in range(0, len(nodes), 2):
             # Конкатенация байтов + двойной SHA256
             combined = nodes[i] + nodes[i + 1]
+            # Результат хеширования используется как есть (32 байта)
             new_level.append(double_sha256(combined))
         nodes = new_level
 
-    # 4. Результат: единственный элемент списка (32 байта, Little-Endian)
+    # 4. Результат: единственный элемент списка (32 байта)
     return nodes[0]
 
 
@@ -194,18 +196,21 @@ def decode_address_to_hash(address):
                 bits -= 8
                 res.append((acc >> bits) & 0xff)
 
+        # Обработка остаточных битов
+        if bits > 0:
+            res.append((acc << (8 - bits)) & 0xff)
+
         # Для P2WPKH (bc1q + 38 символов) должно получиться ровно 20 байт
         pubkey_hash = bytes(res[:20])
         return pubkey_hash
 
     # Для старых адресов (1... и 3...)
-    import base58
     return base58.b58decode_check(address)[1:21]
 
 
-def get_coinbase_txid_from_template(address, template, extranonce_hex="0000"):
+def create_raw_coinbase_transaction(address, template, extranonce_hex="0000"):
     """
-    Генерирует сырую coinbase транзакцию и возвращает её хеш.
+    Генерирует сырую coinbase транзакцию без хеширования.
 
     Parameters
     ----------
@@ -222,7 +227,7 @@ def get_coinbase_txid_from_template(address, template, extranonce_hex="0000"):
     Returns
     -------
     bytes
-        32-байтовый хеш транзакции (txid) в формате, подходящем для Merkle tree
+        Сериализованная сырая coinbase транзакция, готовая к включению в блок
 
     Notes
     -----
@@ -236,8 +241,10 @@ def get_coinbase_txid_from_template(address, template, extranonce_hex="0000"):
     value_satoshi = int(template['coinbasevalue'])
     block_height = int(template['height'])
     witness_commitment_hex = template.get('default_witness_commitment', '')
+
     # 2. Формируем Version (байты)
     tx = struct.pack("<I", 2)
+
     # 3. Inputs
     tx += b"\x01"  # input count
     tx += b"\x00" * 32  # prev txid
@@ -261,9 +268,10 @@ def get_coinbase_txid_from_template(address, template, extranonce_hex="0000"):
     elif address.startswith('3'):
         script = b"\xa9\x14" + pubkey_hash + b"\x87"
     elif address.startswith('bc1q'):
-        # Автоматически определяем P2WPKH (20 байт) или P2WSH (32 байта)
-        # Формат: OP_0 + [длина хеша] + [хеш]
-        script = b"\x00" + pubkey_hash
+        # Формат для P2WPKH: OP_0 <20-byte-key-hash>
+        script = b"\x00" + bytes([len(pubkey_hash)]) + pubkey_hash
+    else:
+        raise ValueError(f"Unsupported address format: {address}")
 
     tx += struct.pack("<Q", value_satoshi)
     tx += encode_varint(len(script)) + script
@@ -277,7 +285,4 @@ def get_coinbase_txid_from_template(address, template, extranonce_hex="0000"):
     # 5. Locktime
     tx += b"\x00\x00\x00\x00"
 
-    # 6. Хеширование
-    txid_bytes = double_sha256(tx)
-
-    return txid_bytes
+    return tx
