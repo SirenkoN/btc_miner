@@ -8,36 +8,25 @@ import requests
 from config import RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT
 
 
-# ------------------------------------------------------------------
-# 1. Создаём сессию, чтобы повторно использовать соединение.
-# ------------------------------------------------------------------
+# 1. Создание сессии для повторного использования соединения.
 session = requests.Session()
 session.auth = (RPC_USER, RPC_PASSWORD)
 
 
-# ------------------------------------------------------------------
 # 2. Утилита RPC
-# ------------------------------------------------------------------
 def rpc_call(method: str, params=None) -> any:
     """
     Выполняет JSON-RPC вызов к локальной ноде и возвращает `result`.
 
-    Parameters
-    ----------
-    method : str
-        Имя метода (например, 'getblocktemplate').
-    params : list | dict | None
-        Параметры метода. Если ``None`` – передаётся пустой список.
+    Args:
+        method (str): Имя метода (например, 'getblocktemplate').
+        params (list | dict | None): Параметры метода. Если `None` – передаётся пустой список.
 
-    Returns
-    -------
-    any
-        Результат RPC в виде Python-объекта или None.
+    Returns:
+        any: Результат RPC в виде Python-объекта.
 
-    Raises
-    ------
-    RuntimeError
-        Если произошла ошибка RPC-вызова.
+    Raises:
+        RuntimeError: Если произошла ошибка RPC-вызова.
     """
     url = f"http://{RPC_HOST}:{RPC_PORT}"
     payload = {
@@ -61,9 +50,7 @@ def rpc_call(method: str, params=None) -> any:
         raise
 
 
-# ------------------------------------------------------------------
 # 3. Получение шаблона блока
-# ------------------------------------------------------------------
 def get_block_template() -> dict:
     """
     Возвращает шаблон блока через RPC.
@@ -71,9 +58,7 @@ def get_block_template() -> dict:
     Использует метод getblocktemplate с параметром:
     {"rules": ["segwit"]}
 
-    Returns
-    -------
-    dict
-        Шаблон блока в формате, определенном Bitcoin Core
+    Returns:
+        dict: Шаблон блока в формате, определенном Bitcoin Core
     """
     return rpc_call("getblocktemplate", [{"rules": ["segwit"]}])

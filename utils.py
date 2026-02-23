@@ -14,15 +14,11 @@ def double_sha256(data: bytes) -> bytes:
     """
     Возвращает двойной SHA-256 хеш входных данных.
 
-    Parameters
-    ----------
-    data : bytes
-        Входные данные для хеширования.
+    Args:
+        data (bytes): Входные данные для хеширования.
 
-    Returns
-    -------
-    bytes
-        Двойной SHA-256 хеш в виде байтов.
+    Returns:
+        bytes: Двойной SHA-256 хеш в виде байтов.
     """
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
@@ -31,30 +27,24 @@ def target_from_bits(bits):
     """
     Переводит compact-формат `bits` в целевой хеш согласно Bitcoin протоколу.
 
-    Parameters
-    ----------
-    bits : int | str
-        Compact representation of the difficulty target.
-        Если строка, она должна быть в hex-формате вида '0x1d00ffff'.
-
-    Returns
-    -------
-    bytes
-        32-байтовый целевой хеш в big-endian формате.
-
-    Notes
-    -----
     Согласно Bitcoin протоколу:
-    - Если экспонента <= 3, вычисляем target = coefficient >> (8 * (3 - exponent))
+    - Если экспонента <= 3, вычисление target = coefficient >> (8 * (3 - exponent))
     - Иначе target = coefficient << (8 * (exponent - 3))
-    - Проверяем на переполнение (максимум 256 бит)
+    - Проверка на переполнение (максимум 256 бит)
+
+    Args:
+        bits (int | str): Компактное представление целевой сложности.
+            Если строка, она должна быть в hex-формате вида '0x1d00ffff'.
+
+    Returns:
+        bytes: 32-байтовый целевой хеш в big-endian формате.
     """
     if isinstance(bits, str):
-        # Убираем префикс '0x', если он есть
+        # Обработка префикса '0x', при наличии
         bits = bits.replace('0x', '')
         bits = int(bits, 16)
 
-    # Извлекаем экспоненту и коэффициент
+    # Извлечение экспоненты и коэффициента
     exponent = bits >> 24
     coefficient = bits & 0x00ffffff
 
@@ -75,20 +65,26 @@ def target_from_bits(bits):
 
 def calculate_merkle_root(address, template):
     """
-    Вычисляет Merkle Root и возвращает его в виде BYTES (Little-Endian),
-    готовых для сборки заголовка блока.
+    Вычисляет Merkle Root и возвращает его в виде BYTES (Little-Endian), готовых для сборки заголовка блока.
+
+    Args:
+        address (str): Адрес получения вознаграждения за майнинг.
+        template (dict): Шаблон блока от getblocktemplate.
+
+    Returns:
+        bytes: Merkle Root в формате little-endian (32 байта), готовый для включения в заголовок блока.
     """
-    # 1. Получаем сырую coinbase транзакцию и вычисляем её хеш
+    # 1. Получение сырой coinbase транзакцию и вычисление её хеша
     raw_coinbase = create_raw_coinbase_transaction(address, template)
-    # Вычисляем хеш и переворачиваем байты для формата little-endian (как хранится в блоке)
+    # Вычисление хеша и разворот байтов для формата little-endian (как хранится в блоке)
     cb_tx_hash = double_sha256(raw_coinbase)[::-1]
 
-    # 2. Собираем список всех TXID в байтах (Little-Endian)
+    # 2. Сборка списка всех TXID в байтах (Little-Endian)
     nodes = [cb_tx_hash]
 
     for tx in template.get('transactions', []):
         # В template txid — это hex-строка (Big-Endian).
-        # Переводим в байты и РАЗВОРАЧИВАЕМ в Little-Endian.
+        # Перевод в байты и разворот в Little-Endian.
         txid_bytes = bytes.fromhex(tx['txid'])[::-1]
         nodes.append(txid_bytes)
 
@@ -116,24 +112,18 @@ def encode_varint(n):
     """
     Кодирует целое число в формат varint, используемый в протоколе Bitcoin.
 
-    Parameters
-    ----------
-    n : int
-        Целочисленное значение для кодирования.
+    Varint используется для эффективного представления целых чисел переменной длины.
+    Формат позволяет экономить пространство в сетевом трафике.
 
-    Returns
-    -------
-    bytes
-        Сериализованное значение в формате varint, соответствующее правилам Bitcoin:
-        - Если n < 0xfd: 1 байт (значение)
-        - Если n <= 0xffff: 3 байта (0xfd + 2-байтовое значение)
-        - Если n <= 0xffffffff: 5 байт (0xfe + 4-байтовое значение)
-        - Если n <= 0xffffffffffffffff: 9 байт (0xff + 8-байтовое значение)
+    Args:
+        n (int): Целочисленное значение для кодирования.
 
-    Notes
-    -----
-    Varint используется для эффективного представления целых чисел переменной длины
-    в транзакциях и блоках Bitcoin. Формат позволяет экономить пространство в сетевом трафике.
+    Returns:
+        bytes: Сериализованное значение в формате varint, соответствующее правилам Bitcoin:
+            * Если n < 0xfd: 1 байт (значение)
+            * Если n <= 0xffff: 3 байта (0xfd + 2-байтовое значение)
+            * Если n <= 0xffffffff: 5 байт (0xfe + 4-байтовое значение)
+            * Если n <= 0xffffffffffffffff: 9 байт (0xff + 8-байтовое значение)
     """
     if n < 0xfd:
         return struct.pack("<B", n)
@@ -149,30 +139,22 @@ def decode_address_to_hash(address):
     """
     Декодирует Bitcoin-адрес в хеш публичного ключа (pubkey hash).
 
-    Parameters
-    ----------
-    address : str
-        Bitcoin-адрес в любом поддерживаемом формате:
-        - P2PKH (начинается с '1')
-        - P2SH (начинается с '3')
-        - Bech32 P2WPKH (начинается с 'bc1q')
-
-    Returns
-    -------
-    bytes
-        20-байтовый хеш публичного ключа в формате, подходящем для использования
-        в скриптах транзакций (байтовый порядок соответствует сети Bitcoin)
-
-    Raises
-    ------
-    ValueError
-        При некорректном формате адреса или неверной контрольной сумме
-
-    Notes
-    -----
     Функция поддерживает все основные типы Bitcoin-адресов и корректно обрабатывает
     различия в кодировании между ними. Для Bech32 адресов выполняется 5-битная конвертация
     в 8-битные данные и извлечение witness программ.
+
+    Args:
+        address (str): Bitcoin-адрес в любом поддерживаемом формате:
+            * P2PKH (начинается с '1')
+            * P2SH (начинается с '3')
+            * Bech32 P2WPKH (начинается с 'bc1q')
+
+    Returns:
+        bytes: 20-байтовый хеш публичного ключа в формате, подходящем для использования
+            в скриптах транзакций (байтовый порядок соответствует сети Bitcoin)
+
+    Raises:
+        ValueError: При некорректном формате адреса или неверной контрольной сумме
     """
     address = address.lower().strip()
 
@@ -183,7 +165,7 @@ def decode_address_to_hash(address):
 
         # data[0] - это witness version (0)
         # data[1:] - это 5-битные данные.
-        # Нам нужно превратить их в 8-битные (20 байт хеша)
+        # Нужно превратить в 8-битные (20 байт хеша)
 
         res = []
         acc = 0
@@ -212,37 +194,29 @@ def create_raw_coinbase_transaction(address, template, extranonce_hex="0000"):
     """
     Генерирует сырую coinbase транзакцию без хеширования.
 
-    Parameters
-    ----------
-    address : str
-        Адрес получателя вознаграждения в поддерживаемом формате
-    template : dict
-        Шаблон блока от getblocktemplate, содержащий:
-        - coinbasevalue: сумма вознаграждения
-        - height: высота блока
-        - default_witness_commitment: опциональный commitment для SegWit
-    extranonce_hex : str, optional
-        Дополнительное поле для включения в scriptsig (по умолчанию "0000")
+    Автоматически определяет тип адреса и формирует соответствующий скрипт.
+    Включает высоту блока в scriptsig согласно правилам coinbase.
+    Поддерживает SegWit через добавление witness commitment при наличии.
+    Соблюдает требования протокола к формату coinbase транзакции.
+    Для P2WPKH адресов использует формат OP_0 + pushdata.
 
-    Returns
-    -------
-    bytes
-        Сериализованная сырая coinbase транзакция, готовая к включению в блок
+    Args:
+        address (str): Адрес получателя вознаграждения в поддерживаемом формате
+        template (dict): Шаблон блока от getblocktemplate, содержащий:
+            * coinbasevalue: сумма вознаграждения
+            * height: высота блока
+            * default_witness_commitment: опциональный commitment для SegWit
+        extranonce_hex (str, optional): Дополнительное поле для включения в scriptsig (по умолчанию "0000")
 
-    Notes
-    -----
-    - Автоматически определяет тип адреса и формирует соответствующий скрипт
-    - Включает высоту блока в scriptsig согласно правилам_coinbase
-    - Поддерживает SegWit через добавление witness commitment при наличии
-    - Соблюдает требования протокола к формату coinbase транзакции
-    - Для P2WPKH адресов использует формат OP_0 + pushdata
+    Returns:
+        bytes: Сериализованная сырая coinbase транзакция, готовая к включению в блок
     """
-    # 1. Извлекаем данные
+    # 1. Извлечение данных
     value_satoshi = int(template['coinbasevalue'])
     block_height = int(template['height'])
     witness_commitment_hex = template.get('default_witness_commitment', '')
 
-    # 2. Формируем Version (байты)
+    # 2. Формирование Version (байты)
     tx = struct.pack("<I", 2)
 
     # 3. Inputs

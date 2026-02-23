@@ -13,31 +13,25 @@ def build_block_header(template: dict) -> bytes:
     """
     Составляет заголовок блока из шаблона без nonce.
 
-    Parameters
-    ----------
-    template : dict
-        Результат `getblocktemplate`.
+    Использование времени из шаблона вместо текущего системного времени.
+    Корректировка времени в пределах допустимого отклонения (±2 часа).
+    Обработка случая, когда время в шаблоне отсутствует.
 
-    Returns
-    -------
-    bytes
-        Сериализованный заголовок (80 байт).
+    Args:
+        template (dict): Результат `getblocktemplate`.
 
-    Notes
-    -----
-    - Используем время из шаблона вместо текущего системного времени
-    - Корректируем время в пределах допустимого отклонения (±2 часа)
-    - Обрабатываем случай, когда время в шаблоне отсутствует
+    Returns:
+        bytes: Сериализованный заголовок (76 байт, без nonce).
     """
     version = template['version'].to_bytes(4, 'little')
 
-    # previousblockhash приходит как hex-строка.
+    # previousblockhash приходит как строка в шестнадцатеричном формате (hex).
     prev_hash = bytes.fromhex(template['previousblockhash'])[::-1]
 
     # merkle_root формируется из coinbase транзакции и транзакций mempool'а.
     merkle_root = calculate_merkle_root(WALLET_ADDRESS, template)
 
-    # Используем время из шаблона с корректировкой
+    # Использование времени из шаблона с корректировкой
     current_time = template.get('curtime', int(time.time()))
 
     # Правила Bitcoin: время блока должно быть:
@@ -49,7 +43,7 @@ def build_block_header(template: dict) -> bytes:
                          min(system_time + max_time_offset, current_time))
     time_sec = corrected_time.to_bytes(4, 'little')
 
-    # bits – возможно строка; преобразуем к int.
+    # bits – возможно строка; преобразование к int.
     bits_int = template['bits']
     if isinstance(bits_int, str):
         bits_int = int(bits_int, 16)
