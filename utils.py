@@ -10,7 +10,9 @@ import bech32
 import base58
 
 
-def double_sha256(data: bytes) -> bytes:
+def double_sha256(
+        data: bytes
+) -> bytes:
     """
     Возвращает двойной SHA-256 хеш входных данных.
 
@@ -23,7 +25,9 @@ def double_sha256(data: bytes) -> bytes:
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
 
-def target_from_bits(bits):
+def target_from_bits(
+        bits
+) -> bytes:
     """
     Переводит compact-формат `bits` в целевой хеш согласно Bitcoin протоколу.
 
@@ -63,7 +67,10 @@ def target_from_bits(bits):
     return target.to_bytes(32, 'big')
 
 
-def calculate_merkle_root(address, template):
+def calculate_merkle_root(
+        address,
+        template
+) -> bytes:
     """
     Вычисляет Merkle Root и возвращает его в виде BYTES (Little-Endian), готовых для сборки заголовка блока.
 
@@ -74,7 +81,7 @@ def calculate_merkle_root(address, template):
     Returns:
         bytes: Merkle Root в формате little-endian (32 байта), готовый для включения в заголовок блока.
     """
-    # 1. Получение сырой coinbase транзакцию и вычисление её хеша
+    # 1. Получение сырой coinbase транзакции и вычисление её хеша
     raw_coinbase = create_raw_coinbase_transaction(address, template)
     # Вычисление хеша и разворот байтов для формата little-endian (как хранится в блоке)
     cb_tx_hash = double_sha256(raw_coinbase)[::-1]
@@ -108,7 +115,9 @@ def calculate_merkle_root(address, template):
     return nodes[0]
 
 
-def encode_varint(n):
+def encode_varint(
+        n
+) -> bytes:
     """
     Кодирует целое число в формат varint, используемый в протоколе Bitcoin.
 
@@ -135,7 +144,9 @@ def encode_varint(n):
         return b"\xff" + struct.pack("<Q", n)
 
 
-def decode_address_to_hash(address):
+def decode_address_to_hash(
+        address
+) -> bytes:
     """
     Декодирует Bitcoin-адрес в хеш публичного ключа (pubkey hash).
 
@@ -190,7 +201,11 @@ def decode_address_to_hash(address):
     return base58.b58decode_check(address)[1:21]
 
 
-def create_raw_coinbase_transaction(address, template, extranonce_hex="0000"):
+def create_raw_coinbase_transaction(
+        address,
+        template,
+        extranonce_hex="0000"
+) -> bytes:
     """
     Генерирует сырую coinbase транзакцию без хеширования.
 

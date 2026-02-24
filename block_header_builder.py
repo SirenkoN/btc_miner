@@ -9,7 +9,9 @@ from config import WALLET_ADDRESS
 from utils import calculate_merkle_root
 
 
-def build_block_header(template: dict) -> bytes:
+def build_block_header(
+        template: dict
+) -> bytes:
     """
     Составляет заголовок блока из шаблона без nonce.
 
@@ -38,9 +40,9 @@ def build_block_header(template: dict) -> bytes:
     # - Не больше чем на 2 часа вперед от системного времени
     # - Не больше чем на 2 часа назад от системного времени
     max_time_offset = 7200  # 2 часа в секундах
-    system_time = int(time.time())
-    corrected_time = max(system_time - max_time_offset,
-                         min(system_time + max_time_offset, current_time))
+    median_time = template.get('mediantime', int(time.time()))
+    corrected_time = max(median_time - max_time_offset,
+                         min(median_time + max_time_offset, current_time))
     time_sec = corrected_time.to_bytes(4, 'little')
 
     # bits – возможно строка; преобразование к int.

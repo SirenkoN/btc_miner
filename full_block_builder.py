@@ -7,7 +7,11 @@
 from utils import encode_varint, create_raw_coinbase_transaction
 
 
-def build_full_block(header: bytes, template: dict, wallet_address: str) -> bytes:
+def build_full_block(
+        header: bytes,
+        template: dict,
+        wallet_address: str
+) -> bytes:
     """
     Собирает полный блок из заголовка и транзакций.
 

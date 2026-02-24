@@ -7,14 +7,16 @@ RPC-клиент для взаимодействия с Bitcoin-нодой.
 import requests
 from config import RPC_USER, RPC_PASSWORD, RPC_HOST, RPC_PORT
 
-
 # 1. Создание сессии для повторного использования соединения.
 session = requests.Session()
 session.auth = (RPC_USER, RPC_PASSWORD)
 
 
 # 2. Утилита RPC
-def rpc_call(method: str, params=None) -> any:
+def rpc_call(
+        method: str,
+        params=None
+) -> any:
     """
     Выполняет JSON-RPC вызов к локальной ноде и возвращает `result`.
 
