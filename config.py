@@ -63,4 +63,4 @@ NONCE_CHUNK_SIZE = 1000000
 GPU_ENABLED = False
 
 # Количество worker процессов для параллельного майнинга
-WORKER_COUNT = 12
+WORKER_COUNT = 8

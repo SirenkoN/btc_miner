@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Точка входа для Bitcoin-майнера версия 0.61
-Добавлен отдельный поток статистики хэшрейта, оптимизирована работа с кэшем.
+Точка входа для Bitcoin-майнера версия 0.62
+Рефакторинг: переход с print на логирование.
 Изменена логика сборки заголовка блока, вместо системного времени используется медианное.
 """
 
@@ -19,7 +19,7 @@ from rpc_client import rpc_call, get_block_template
 from block_header_builder import build_block_header
 from full_block_builder import build_full_block
 from utils import double_sha256, target_from_bits
-
+from logger import logger
 
 def cpu_worker_process(
         worker_id: int,
@@ -61,7 +61,7 @@ def cpu_worker_process(
     # Локальная ссылка для быстрого доступа к функции
     _double_sha256 = double_sha256
 
-    print(f"[CPU WORKER {worker_id}] Запущен. Работает в диапазоне nonce: {start_nonce:#x}-{end_nonce:#x}")
+    logger.info(f"[CPU WORKER {worker_id}] Запущен. Работает в диапазоне nonce: {start_nonce:#x}-{end_nonce:#x}")
 
     while True:
         try:
@@ -107,7 +107,7 @@ def cpu_worker_process(
                     # Найден подходящий nonce!
                     with result_lock:
                         struct.pack_into('<QI', result_slot, 0, id_task, nonce)
-                    print(f"[CPU WORKER {worker_id}] Найден nonce {nonce:#x} для задачи {id_task}")
+                    logger.info(f"[CPU WORKER {worker_id}] Найден nonce {nonce:#x} для задачи {id_task}")
                     break
 
                 attempts += 1
@@ -117,7 +117,7 @@ def cpu_worker_process(
                 stats_array[worker_id] += attempts
 
         except Exception as e:
-            print(f"[CPU WORKER {worker_id}] Ошибка: {str(e)}")
+            logger.error(f"[CPU WORKER {worker_id}] Ошибка: {str(e)}")
 
 
 def result_checker_thread(
@@ -148,7 +148,7 @@ def result_checker_thread(
         None: Функция ничего не возвращает, работает как бесконечный цикл в фоновом потоке.
     """
 
-    print("[RESULT CHECKER] Запущен поток проверки результатов")
+    logger.info("[RESULT CHECKER] Запущен поток проверки результатов")
 
     while True:
         # Проверка наличия результата
@@ -178,16 +178,16 @@ def result_checker_thread(
             full_block = build_full_block(header_with_nonce, template, wallet_address)
 
             result = rpc_call('submitblock', [full_block.hex()])
-            print(f"[RESULT CHECKER] Отправляем блок {template['height']} с nonce {nonce:#x}")
+            logger.info(f"[RESULT CHECKER] Отправляем блок {template['height']} с nonce {nonce:#x}")
 
             status = "успешно отправлен и принят!" if result is None else "ошибка"
             message = f"Блок {template['height']} {status}"
             if result is not None:
                 message += f": {result}"
-            print(f"[RESULT CHECKER] {message}")
+            logger.info(f"[RESULT CHECKER] {message}")
 
         except Exception as e:
-            print(f"[RESULT CHECKER] Ошибка при обработке результата: {str(e)}")
+            logger.error(f"[RESULT CHECKER] Ошибка при обработке результата: {str(e)}")
         finally:
             # Очистка слота ПОСЛЕ всех операций
             with result_lock:
@@ -222,7 +222,7 @@ def hashrate_stats_thread(
     Returns:
         None: Функция работает в бесконечном цикле пока существует основной процесс.
     """
-    print(f"[HASHRATE] Запущен поток сбора статистики (обновление каждые {interval} секунд)")
+    logger.info(f"[HASHRATE] Запущен поток сбора статистики (обновление каждые {interval} секунд)")
 
     # Инициализация данных для расчета скорости
     last_stats = [0] * WORKER_COUNT
@@ -259,7 +259,7 @@ def hashrate_stats_thread(
             else:
                 formatted_hashrate = f"{hashrate:.2f} H/s"
 
-            print(f"[HASHRATE] Скорость хеширования: {formatted_hashrate} | "
+            logger.info(f"[HASHRATE] Скорость хеширования: {formatted_hashrate} | "
                   f"Всего проверено: {total_attempts:,} nonce")
 
             # Обновление данных для следующего расчета
@@ -267,7 +267,7 @@ def hashrate_stats_thread(
             last_update = current_time
 
         except Exception as e:
-            print(f"[HASHRATE] Ошибка при сборе статистики: {str(e)}")
+            logger.error(f"[HASHRATE] Ошибка при сборе статистики: {str(e)}")
 
 
 def clean_obsolete_templates(
@@ -304,7 +304,7 @@ def clean_obsolete_templates(
                 removed_count += 1
 
     if removed_count > 0:
-        print(f"[CACHE] Очищено {removed_count} устаревших записей кэша (высота блока меньше чем {threshold_height})")
+        logger.info(f"[CACHE] Очищено {removed_count} устаревших записей кэша (высота блока меньше чем {threshold_height})")
 
 
 def run_miner() -> None:
@@ -323,9 +323,9 @@ def run_miner() -> None:
     Returns:
         None: Функция ничего не возвращает после завершения работы.
     """
-    print("=== Bitcoin-майнер (версия 0.61) ===")
-    print("Майнер запущен с поддержкой параллельного майнинга на CPU")
-    print(f"Используется {WORKER_COUNT} worker процессов")
+    logger.info("=== Bitcoin-майнер (версия 0.62) ===")
+    logger.info("Майнер запущен с поддержкой параллельного майнинга на CPU")
+    logger.info(f"Используется {WORKER_COUNT} worker процессов")
 
     # Создание shared memory структуры
     SLOT_SIZE = 8 + 76 + 32  # id_task (8B) + header (76B) + target (32B)
@@ -353,7 +353,7 @@ def run_miner() -> None:
             daemon=True
         )
         p.start()
-        print(f"[INFO] Запущен CPU worker процесс {i} (PID: {p.pid})")
+        logger.info(f"[INFO] Запущен CPU worker процесс {i} (PID: {p.pid})")
         worker_processes.append(p)
 
     # Запуск потока проверки результатов
@@ -379,7 +379,7 @@ def run_miner() -> None:
     current_id = 0
     current_height = -1
 
-    print(f"[INFO] Ожидание нового задания (проверка каждые {CHECK_INTERVAL} сек)...")
+    logger.info(f"[INFO] Ожидание нового задания (проверка каждые {CHECK_INTERVAL} сек)...")
 
     try:
         while True:
@@ -396,7 +396,7 @@ def run_miner() -> None:
                     new_template = get_block_template()
                     last_check_time = current_time
                 except Exception as e:
-                    print(f"[ERROR] Ошибка получения шаблона: {str(e)}")
+                    logger.error(f"[ERROR] Ошибка получения шаблона: {str(e)}")
                     time.sleep(1)
                     continue
 
@@ -404,7 +404,7 @@ def run_miner() -> None:
                     # Первый запуск
                     should_update = True
                     update_reason = "первый запуск"
-                    print(f"[INFO] Получен первый шаблон блока")
+                    logger.info(f"[INFO] Получен первый шаблон блока")
                 else:
                     # Проверка наличия изменений
                     new_height = int(new_template['height'])
@@ -416,7 +416,7 @@ def run_miner() -> None:
                     if new_height > current_height:
                         should_update = True
                         update_reason = f"изменение высоты блока с {current_height} на {new_height}"
-                        print(f"\n[NETWORK] Высота блока в сети изменилась. Текущая высота блока: {new_height}, "
+                        logger.info(f"\n[NETWORK] Высота блока в сети изменилась. Текущая высота блока: {new_height}, "
                               f"целевая сложность: {new_template['bits']}")
                         current_height = new_height
 
@@ -468,29 +468,29 @@ def run_miner() -> None:
                     tx_count = 1 + len(current_template.get('transactions', []))
 
                     # Вывод информации об обновлении задания
-                    print(f"[TASK] Новое задание #{current_id}: {update_reason}")
-                    print(f"[TASK] Высота: {current_template['height']}, "
+                    logger.info(f"[TASK] Новое задание #{current_id}: {update_reason}")
+                    logger.info(f"[TASK] Высота: {current_template['height']}, "
                           f"Целевая сложность: {current_template['bits']}. "
                           f"Транзакций в шаблоне: {tx_count}")
-                    print(f"[TASK] Начата обработка задачи #{current_id}")
+                    logger.info(f"[TASK] Начата обработка задачи #{current_id}")
 
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("\n[INFO] Майнер остановлен пользователем.")
+        logger.info("\n[INFO] Майнер остановлен пользователем.")
     except Exception as e:
-        print(f"[FATAL] Необработанная ошибка: {str(e)}")
+        logger.error(f"[FATAL] Необработанная ошибка: {str(e)}")
     finally:
-        print("[INFO] Остановка worker процессов...")
+        logger.info("[INFO] Остановка worker процессов...")
         for p in worker_processes:
             p.terminate()
         for p in worker_processes:
             p.join(timeout=2.0)
-        print("[INFO] Работа завершена")
+        logger.info("[INFO] Работа завершена")
 
 
 if __name__ == "__main__":
     try:
         run_miner()
     except KeyboardInterrupt:
-        print("\n[INFO] Майнер остановлен пользователем.")
+        logger.info("\n[INFO] Майнер остановлен пользователем.")
