@@ -5,8 +5,10 @@
 """
 
 import time
+
+# Импорты из проекта
+from blockchain.utils import calculate_merkle_root
 from config import WALLET_ADDRESS
-from utils import calculate_merkle_root
 
 
 def build_block_header(

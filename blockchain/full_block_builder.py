@@ -4,7 +4,8 @@
 Содержит логику сериализации блока для отправки ноде.
 """
 
-from utils import encode_varint, create_raw_coinbase_transaction
+# Импорты из проекта
+from blockchain.utils import encode_varint, create_raw_coinbase_transaction
 
 
 def build_full_block(

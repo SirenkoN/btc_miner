@@ -6,8 +6,9 @@
 
 import hashlib  # SHA-256 хеширование
 import struct
-import bech32
+
 import base58
+import bech32
 
 
 def double_sha256(
@@ -26,7 +27,7 @@ def double_sha256(
 
 
 def target_from_bits(
-        bits
+        bits: int or str
 ) -> bytes:
     """
     Переводит compact-формат `bits` в целевой хеш согласно Bitcoin протоколу.
@@ -37,7 +38,7 @@ def target_from_bits(
     - Проверка на переполнение (максимум 256 бит)
 
     Args:
-        bits (int | str): Компактное представление целевой сложности.
+        bits (int or str): Компактное представление целевой сложности.
             Если строка, она должна быть в hex-формате вида '0x1d00ffff'.
 
     Returns:
@@ -68,8 +69,8 @@ def target_from_bits(
 
 
 def calculate_merkle_root(
-        address,
-        template
+        address: str,
+        template: dict
 ) -> bytes:
     """
     Вычисляет Merkle Root и возвращает его в виде BYTES (Little-Endian), готовых для сборки заголовка блока.
@@ -116,7 +117,7 @@ def calculate_merkle_root(
 
 
 def encode_varint(
-        n
+        n: int
 ) -> bytes:
     """
     Кодирует целое число в формат varint, используемый в протоколе Bitcoin.
@@ -145,7 +146,7 @@ def encode_varint(
 
 
 def decode_address_to_hash(
-        address
+        address: str
 ) -> bytes:
     """
     Декодирует Bitcoin-адрес в хеш публичного ключа (pubkey hash).
@@ -202,8 +203,8 @@ def decode_address_to_hash(
 
 
 def create_raw_coinbase_transaction(
-        address,
-        template,
+        address: str,
+        template: dict,
         extranonce_hex="0000"
 ) -> bytes:
     """
@@ -221,7 +222,7 @@ def create_raw_coinbase_transaction(
             * coinbasevalue: сумма вознаграждения
             * height: высота блока
             * default_witness_commitment: опциональный commitment для SegWit
-        extranonce_hex (str, optional): Дополнительное поле для включения в scriptsig (по умолчанию "0000")
+        extranonce_hex (str): Дополнительное поле для включения в scriptsig (по умолчанию "0000")
 
     Returns:
         bytes: Сериализованная сырая coinbase транзакция, готовая к включению в блок
